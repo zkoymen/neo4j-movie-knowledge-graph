@@ -27,7 +27,7 @@ class GraphExplorer:
 
     def _query_to_df(self, query: str, **params: object) -> pd.DataFrame:
         """Run a query and return the rows as a DataFrame."""
-        with self.driver.session() as session:
+        with self.driver.session(database=config.NEO4J_DATABASE) as session:
             result = session.run(query, **params)
             return pd.DataFrame([dict(record) for record in result])
 
@@ -66,10 +66,9 @@ class GraphExplorer:
             OPTIONAL MATCH (:User)-[r:RATED]->(m)
             RETURN m.title AS title,
                    m.year AS year,
-                   m.rating AS movie_rating,
-                   round(avg(r.rating) * 10) / 10.0 AS source_avg_rating,
+                   coalesce(m.imdbRating, m.rating, round(avg(r.rating) * 10) / 10.0) AS avg_rating,
                    count(r) AS rating_count
-            ORDER BY movie_rating DESC, rating_count DESC, title
+            ORDER BY avg_rating DESC, rating_count DESC, title
             """
         )
 
@@ -82,18 +81,6 @@ class GraphExplorer:
                    collect(m.title) AS movies,
                    count(m) AS movie_count
             ORDER BY movie_count DESC, genre
-            """
-        )
-
-    def get_movies_by_country(self) -> pd.DataFrame:
-        """Return movies grouped by country."""
-        return self._query_to_df(
-            """
-            MATCH (m:Movie)-[:IN_COUNTRY]->(c:Country)
-            RETURN c.name AS country,
-                   collect(m.title) AS movies,
-                   count(m) AS movie_count
-            ORDER BY movie_count DESC, country
             """
         )
 
@@ -155,7 +142,6 @@ class GraphExplorer:
             "relationship_counts": self.get_relationship_counts(),
             "top_rated_movies": self.get_top_rated_movies(),
             "movies_by_genre": self.get_movies_by_genre(),
-            "movies_by_country": self.get_movies_by_country(),
             "actor_movie_counts": self.get_actor_movie_counts(),
             "actor_collaborations": self.get_actor_collaborations(),
             "director_movie_counts": self.get_director_movie_counts(),
