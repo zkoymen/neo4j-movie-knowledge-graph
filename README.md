@@ -24,6 +24,7 @@ This project currently uses the local `.venv` environment.
 ```
 
 3. Copy `.env.example` to `.env` and fill your Neo4j credentials.
+4. Add `OMDB_API_KEY` in `.env` when you are ready to pull data from OMDb.
 
 The versions in `requirements.txt` were updated to match what installs on Python `3.14`.
 
@@ -39,6 +40,8 @@ This will:
 - Load a small sample movie graph
 - Add simple `IN_GENRE` relationships
 - Print schema statistics
+- Run basic Phase 2 exploration queries
+- Save CSV tables in `outputs/results/`
 - Save a schema figure to `outputs/figures/schema_diagram.png`
 
 ## 3. Notes

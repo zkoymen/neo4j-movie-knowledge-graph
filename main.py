@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from neo4j.exceptions import DriverError, Neo4jError, ServiceUnavailable
 
+from src.cypher_queries import GraphExplorer
 from src.data_loader import run_phase1_load
 from src.graph_model import print_schema
 from src.visualization import visualize_schema
@@ -24,6 +25,22 @@ def main() -> None:
     print("\n3) Loading and validating sample data in Neo4j...")
     try:
         run_phase1_load()
+
+        print("\n4) Running first exploration queries...")
+        explorer = GraphExplorer()
+        try:
+            results = explorer.run_basic_exploration()
+        finally:
+            explorer.close()
+
+        print("\n--- Node Counts ---")
+        print(results["node_counts"])
+
+        print("\n--- Relationship Counts ---")
+        print(results["relationship_counts"])
+
+        print("\n--- Top Rated Movies ---")
+        print(results["top_rated_movies"])
     except (Neo4jError, DriverError, ServiceUnavailable) as exc:
         print("\nNeo4j is not reachable or query failed.")
         print("Please check `.env` and Neo4j server status, then run again.")

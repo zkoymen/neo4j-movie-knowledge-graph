@@ -4,7 +4,7 @@ from __future__ import annotations
 GRAPH_SCHEMA = {
     "nodes": {
         "Movie": {
-            "properties": ["title", "year", "tagline"],
+            "properties": ["title", "year", "rating", "tagline"],
             "description": "A movie entity.",
         },
         "Actor": {
