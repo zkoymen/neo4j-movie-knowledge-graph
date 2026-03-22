@@ -37,8 +37,7 @@ The versions in `requirements.txt` were updated to match what installs on Python
 This will:
 - Print the conceptual graph schema
 - Try to connect to Neo4j
-- Load a small sample movie graph
-- Add simple `IN_GENRE` relationships
+- Pull movie data from OMDb
 - Print schema statistics
 - Run basic Phase 2 exploration queries
 - Save CSV tables in `outputs/results/`
@@ -48,8 +47,8 @@ This will:
 
 - The code has simple English comments for learning purposes.
 - Work is intentionally incremental and testable, not all phases at once.
-- Current sample schema uses `Movie`, `Actor`, `Director`, `User`, and `Genre`.
-- Current sample relationships are `ACTED_IN`, `DIRECTED`, `RATED`, and `IN_GENRE`.
+- Current schema uses `Movie`, `Actor`, `Director`, `User`, `Genre`, and `Country`.
+- Current relationships are `ACTED_IN`, `DIRECTED`, `RATED`, `IN_GENRE`, and `IN_COUNTRY`.
 - `matplotlib` is required now because the schema figure is part of the project output.
 - `node2vec` is not in the requirements for now because its current package constraints do not fit this Python version.
 - If you want to use VS Code terminal, run the `.ps1` scripts from the project root.

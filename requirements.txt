@@ -10,3 +10,4 @@ pyvis==0.3.2
 python-louvain==0.16
 pykeen==1.11.1
 torch==2.10.0
+requests==2.32.5
