@@ -25,6 +25,7 @@ def visualize_schema() -> Path:
         "Director": "#FB8C00",
         "User": "#8E24AA",
         "Genre": "#EA4335",
+        "Country": "#00897B",
     }
     for node in node_colors:
         graph.add_node(node)
@@ -35,6 +36,7 @@ def visualize_schema() -> Path:
         ("Director", "Movie", "DIRECTED"),
         ("User", "Movie", "RATED"),
         ("Movie", "Genre", "IN_GENRE"),
+        ("Movie", "Country", "IN_COUNTRY"),
     ]
     for source, target, label in edges:
         graph.add_edge(source, target, label=label)

@@ -4,24 +4,37 @@ from __future__ import annotations
 GRAPH_SCHEMA = {
     "nodes": {
         "Movie": {
-            "properties": ["title", "year", "rating", "tagline"],
+            "properties": [
+                "title",
+                "year",
+                "rating",
+                "imdb_id",
+                "rated",
+                "released",
+                "runtime",
+                "plot",
+            ],
             "description": "A movie entity.",
         },
         "Actor": {
-            "properties": ["name", "born"],
+            "properties": ["name"],
             "description": "An actor node.",
         },
         "Director": {
-            "properties": ["name", "born"],
+            "properties": ["name"],
             "description": "A director node.",
         },
         "User": {
             "properties": ["name"],
-            "description": "A user who rates movies.",
+            "description": "A rating source node.",
         },
         "Genre": {
             "properties": ["name"],
             "description": "A movie genre label.",
+        },
+        "Country": {
+            "properties": ["name"],
+            "description": "A country connected to a movie.",
         },
     },
     "relationships": {
@@ -29,6 +42,7 @@ GRAPH_SCHEMA = {
         "DIRECTED": {"from": "Director", "to": "Movie", "properties": []},
         "RATED": {"from": "User", "to": "Movie", "properties": ["rating"]},
         "IN_GENRE": {"from": "Movie", "to": "Genre", "properties": []},
+        "IN_COUNTRY": {"from": "Movie", "to": "Country", "properties": []},
     },
 }
 

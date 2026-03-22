@@ -5,6 +5,7 @@ from neo4j.exceptions import DriverError, Neo4jError, ServiceUnavailable
 
 from src.cypher_queries import GraphExplorer
 from src.data_loader import run_phase1_load
+from src.graph_analysis import GraphAnalyzer
 from src.graph_model import print_schema
 from src.visualization import visualize_schema
 
@@ -22,7 +23,7 @@ def main() -> None:
     figure_path = visualize_schema()
     print(f"Schema diagram saved: {figure_path}")
 
-    print("\n3) Loading and validating sample data in Neo4j...")
+    print("\n3) Loading and validating OMDb data in Neo4j...")
     try:
         run_phase1_load()
 
@@ -41,6 +42,29 @@ def main() -> None:
 
         print("\n--- Top Rated Movies ---")
         print(results["top_rated_movies"])
+
+        print("\n5) Running graph analysis...")
+        analyzer = GraphAnalyzer()
+        try:
+            analyzer.build_actor_cooccurrence_graph()
+            degree_df = analyzer.compute_degree_distribution()
+            centrality_df = analyzer.compute_centralities()
+            community_df = analyzer.detect_communities()
+            summary_df = analyzer.get_graph_summary()
+        finally:
+            analyzer.close()
+
+        print("\n--- Degree Distribution ---")
+        print(degree_df.head())
+
+        print("\n--- Centralities ---")
+        print(centrality_df.head())
+
+        print("\n--- Communities ---")
+        print(community_df.head())
+
+        print("\n--- Graph Summary ---")
+        print(summary_df)
     except (Neo4jError, DriverError, ServiceUnavailable) as exc:
         print("\nNeo4j is not reachable or query failed.")
         print("Please check `.env` and Neo4j server status, then run again.")

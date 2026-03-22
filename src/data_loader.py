@@ -1,61 +1,16 @@
-"""Neo4j data loading helpers for Phase 1."""
+"""Neo4j data loading helpers for OMDb based movie import."""
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Dict, List, Tuple
+from typing import Any, List, Tuple
 
+import requests
 from neo4j import GraphDatabase
 from neo4j.exceptions import Neo4jError
 
 import config
 
-
-# We keep small sample data here so Phase 1 can run quickly.
-SAMPLE_MOVIES: List[Tuple[str, int, str]] = [
-    ("The Matrix", 1999, "Welcome to the Real World"),
-    ("John Wick", 2014, "Don't set him off"),
-    ("Speed", 1994, "Get ready for rush hour"),
-]
-
-SAMPLE_ACTORS: List[Tuple[str, int]] = [
-    ("Keanu Reeves", 1964),
-    ("Laurence Fishburne", 1961),
-    ("Carrie-Anne Moss", 1967),
-]
-
-SAMPLE_DIRECTORS: List[Tuple[str, int]] = [
-    ("Lana Wachowski", 1965),
-    ("Lilly Wachowski", 1967),
-    ("Chad Stahelski", 1968),
-    ("Jan de Bont", 1943),
-]
-
-SAMPLE_USERS: List[str] = [
-    "Alice",
-    "Bob",
-]
-
-SAMPLE_ACTED_IN: List[Tuple[str, str, Dict[str, List[str]]]] = [
-    ("Keanu Reeves", "The Matrix", {"roles": ["Neo"]}),
-    ("Laurence Fishburne", "The Matrix", {"roles": ["Morpheus"]}),
-    ("Carrie-Anne Moss", "The Matrix", {"roles": ["Trinity"]}),
-    ("Keanu Reeves", "John Wick", {"roles": ["John Wick"]}),
-    ("Keanu Reeves", "Speed", {"roles": ["Jack Traven"]}),
-]
-
-SAMPLE_DIRECTED: List[Tuple[str, str]] = [
-    ("Lana Wachowski", "The Matrix"),
-    ("Lilly Wachowski", "The Matrix"),
-    ("Chad Stahelski", "John Wick"),
-    ("Jan de Bont", "Speed"),
-]
-
-SAMPLE_RATINGS: List[Tuple[str, str, int]] = [
-    ("Alice", "The Matrix", 9),
-    ("Alice", "John Wick", 8),
-    ("Bob", "The Matrix", 10),
-    ("Bob", "Speed", 7),
-]
+OMDB_TIMEOUT_SECONDS = 20
 
 
 @dataclass
@@ -66,19 +21,80 @@ class SchemaStats:
     relationship_counts: List[Tuple[str, int]]
 
 
+def _split_csv_field(value: str) -> list[str]:
+    """Split OMDb comma separated values into clean list items."""
+    if not value or value == "N/A":
+        return []
+    return [item.strip() for item in value.split(",") if item.strip()]
+
+
+def _parse_title_seed(raw_value: str) -> tuple[str, int | None]:
+    """Parse 'Title::Year' or just 'Title'."""
+    if "::" not in raw_value:
+        return raw_value.strip(), None
+
+    title, year = raw_value.split("::", 1)
+    parsed_year = _safe_int(year.strip())
+    return title.strip(), parsed_year
+
+
+def _safe_int(value: str) -> int | None:
+    """Convert text to int when possible."""
+    if not value or value == "N/A":
+        return None
+    digits = "".join(char for char in value if char.isdigit())
+    return int(digits) if digits else None
+
+
+def _safe_float(value: str) -> float | None:
+    """Convert text to float when possible."""
+    if not value or value == "N/A":
+        return None
+    try:
+        return float(value)
+    except ValueError:
+        return None
+
+
+def _normalize_rating(value: str) -> float | None:
+    """
+    Normalize ratings to a 0-10 scale.
+
+    Examples:
+    - 8.7/10 -> 8.7
+    - 88% -> 8.8
+    - 73/100 -> 7.3
+    """
+    if not value or value == "N/A":
+        return None
+
+    if value.endswith("%"):
+        return round(float(value[:-1]) / 10.0, 1)
+
+    if "/" in value:
+        raw_score, max_score = value.split("/", 1)
+        return round((float(raw_score) / float(max_score)) * 10.0, 1)
+
+    try:
+        return float(value)
+    except ValueError:
+        return None
+
+
 class MovieGraphLoader:
-    """Load and enrich the movie knowledge graph."""
+    """Load and enrich the movie knowledge graph from OMDb."""
 
     def __init__(self) -> None:
-        # Driver is created once and reused by methods.
         self.driver = GraphDatabase.driver(
             config.NEO4J_URI,
             auth=(config.NEO4J_USER, config.NEO4J_PASSWORD),
         )
+        self.http = requests.Session()
 
     def close(self) -> None:
-        """Close the Neo4j driver connection."""
+        """Close both Neo4j and HTTP sessions."""
         self.driver.close()
+        self.http.close()
 
     def test_connection(self) -> None:
         """Run a tiny query to check Neo4j connectivity."""
@@ -92,127 +108,159 @@ class MovieGraphLoader:
         with self.driver.session() as session:
             session.run("MATCH (n) DETACH DELETE n")
 
-    def load_sample_movies_dataset(self) -> None:
-        """
-        Load a small, clean sample graph.
+    def _get_target_titles(self) -> list[tuple[str, int | None]]:
+        """Read movie titles from config."""
+        raw_titles = config.OMDB_MOVIE_TITLES
+        return [_parse_title_seed(title) for title in raw_titles.split("|") if title.strip()]
 
-        Why sample graph:
-        - It is fast.
-        - It is easy to verify.
-        - It avoids long setup in first iteration.
-        """
+    def fetch_movie_from_omdb(self, title: str, year: int | None = None) -> dict[str, Any]:
+        """Fetch one movie payload from OMDb."""
+        if not config.OMDB_API_KEY:
+            raise RuntimeError("OMDB_API_KEY is missing in .env.")
+
+        params = {
+            "apikey": config.OMDB_API_KEY,
+            "t": title,
+            "type": "movie",
+            "plot": "short",
+            "r": "json",
+        }
+        if year is not None:
+            params["y"] = year
+
+        response = self.http.get(
+            config.OMDB_BASE_URL,
+            params=params,
+            timeout=OMDB_TIMEOUT_SECONDS,
+        )
+        response.raise_for_status()
+        payload = response.json()
+
+        if payload.get("Response") == "False":
+            raise RuntimeError(f"OMDb could not find movie: {title} | {payload.get('Error')}")
+
+        return payload
+
+    def _merge_movie_payload(self, payload: dict[str, Any]) -> None:
+        """Write one OMDb movie payload into Neo4j."""
+        title = payload.get("Title", "").strip()
+        imdb_id = payload.get("imdbID", "").strip()
+        if not title or not imdb_id:
+            return
+
+        year = _safe_int(payload.get("Year", ""))
+        imdb_rating = _safe_float(payload.get("imdbRating", ""))
+        runtime = _safe_int(payload.get("Runtime", ""))
+
         with self.driver.session() as session:
-            for title, year, tagline in SAMPLE_MOVIES:
-                session.run(
-                    """
-                    MERGE (m:Movie {title: $title})
-                    SET m.year = $year,
-                        m.released = $year,
-                        m.tagline = $tagline
-                    """,
-                    title=title,
-                    year=year,
-                    tagline=tagline,
-                )
+            session.run(
+                """
+                MERGE (m:Movie {imdb_id: $imdb_id})
+                SET m.title = $title,
+                    m.year = $year,
+                    m.rating = $rating,
+                    m.rated = $rated,
+                    m.released = $released,
+                    m.runtime = $runtime,
+                    m.plot = $plot,
+                    m.poster = $poster,
+                    m.metascore = $metascore,
+                    m.imdb_votes = $imdb_votes,
+                    m.box_office = $box_office,
+                    m.production = $production,
+                    m.website = $website,
+                    m.type = $type
+                """,
+                imdb_id=imdb_id,
+                title=title,
+                year=year,
+                rating=imdb_rating,
+                rated=payload.get("Rated"),
+                released=payload.get("Released"),
+                runtime=runtime,
+                plot=payload.get("Plot"),
+                poster=payload.get("Poster"),
+                metascore=_safe_int(payload.get("Metascore", "")),
+                imdb_votes=payload.get("imdbVotes"),
+                box_office=payload.get("BoxOffice"),
+                production=payload.get("Production"),
+                website=payload.get("Website"),
+                type=payload.get("Type"),
+            )
 
-            for name, born in SAMPLE_ACTORS:
+            for actor_name in _split_csv_field(payload.get("Actors", "")):
                 session.run(
                     """
-                    MERGE (a:Actor {name: $name})
-                    SET a.born = $born
-                    """,
-                    name=name,
-                    born=born,
-                )
-
-            for name, born in SAMPLE_DIRECTORS:
-                session.run(
-                    """
-                    MERGE (d:Director {name: $name})
-                    SET d.born = $born
-                    """,
-                    name=name,
-                    born=born,
-                )
-
-            for name in SAMPLE_USERS:
-                session.run(
-                    """
-                    MERGE (u:User {name: $name})
-                    """,
-                    name=name,
-                )
-
-            for actor_name, movie_title, rel_props in SAMPLE_ACTED_IN:
-                session.run(
-                    """
-                    MATCH (a:Actor {name: $actor_name})
-                    MATCH (m:Movie {title: $movie_title})
-                    MERGE (a)-[r:ACTED_IN]->(m)
-                    SET r += $rel_props
+                    MERGE (a:Actor {name: $actor_name})
+                    MERGE (m:Movie {imdb_id: $imdb_id})
+                    MERGE (a)-[:ACTED_IN]->(m)
                     """,
                     actor_name=actor_name,
-                    movie_title=movie_title,
-                    rel_props=rel_props,
+                    imdb_id=imdb_id,
                 )
 
-            for director_name, movie_title in SAMPLE_DIRECTED:
+            for director_name in _split_csv_field(payload.get("Director", "")):
                 session.run(
                     """
-                    MATCH (d:Director {name: $director_name})
-                    MATCH (m:Movie {title: $movie_title})
+                    MERGE (d:Director {name: $director_name})
+                    MERGE (m:Movie {imdb_id: $imdb_id})
                     MERGE (d)-[:DIRECTED]->(m)
                     """,
                     director_name=director_name,
-                    movie_title=movie_title,
+                    imdb_id=imdb_id,
                 )
 
-            for user_name, movie_title, rating in SAMPLE_RATINGS:
+            for genre_name in _split_csv_field(payload.get("Genre", "")):
                 session.run(
                     """
-                    MATCH (u:User {name: $user_name})
-                    MATCH (m:Movie {title: $movie_title})
-                    MERGE (u)-[r:RATED]->(m)
-                    SET r.rating = $rating
+                    MERGE (g:Genre {name: $genre_name})
+                    MERGE (m:Movie {imdb_id: $imdb_id})
+                    MERGE (m)-[:IN_GENRE]->(g)
                     """,
-                    user_name=user_name,
-                    movie_title=movie_title,
-                    rating=rating,
+                    genre_name=genre_name,
+                    imdb_id=imdb_id,
                 )
 
-            # Save average user rating back to each movie node.
-            session.run(
-                """
-                MATCH (m:Movie)
-                OPTIONAL MATCH (:User)-[r:RATED]->(m)
-                WITH m, avg(r.rating) AS avg_rating
-                SET m.rating = round(coalesce(avg_rating, 0.0) * 10) / 10.0
-                """
-            )
+            for country_name in _split_csv_field(payload.get("Country", "")):
+                session.run(
+                    """
+                    MERGE (c:Country {name: $country_name})
+                    MERGE (m:Movie {imdb_id: $imdb_id})
+                    MERGE (m)-[:IN_COUNTRY]->(c)
+                    """,
+                    country_name=country_name,
+                    imdb_id=imdb_id,
+                )
 
-    def add_genre_nodes(self) -> None:
-        """
-        Create Genre nodes and IN_GENRE links.
+            for rating_item in payload.get("Ratings", []):
+                source_name = rating_item.get("Source", "").strip()
+                raw_rating = rating_item.get("Value", "").strip()
+                normalized_rating = _normalize_rating(raw_rating)
+                if not source_name or normalized_rating is None:
+                    continue
 
-        We map genres manually in this first version.
-        """
-        genre_mapping = {
-            "The Matrix": ["Sci-Fi", "Action"],
-            "John Wick": ["Action", "Thriller"],
-            "Speed": ["Action", "Thriller"],
-        }
-        with self.driver.session() as session:
-            for movie_title, genres in genre_mapping.items():
-                for genre in genres:
-                    session.run(
-                        """
-                        MATCH (m:Movie {title: $title})
-                        MERGE (g:Genre {name: $genre})
-                        MERGE (m)-[:IN_GENRE]->(g)
-                        """,
-                        title=movie_title,
-                        genre=genre,
-                    )
+                session.run(
+                    """
+                    MERGE (u:User {name: $source_name})
+                    MERGE (m:Movie {imdb_id: $imdb_id})
+                    MERGE (u)-[r:RATED]->(m)
+                    SET r.rating = $rating,
+                        r.raw_value = $raw_value
+                    """,
+                    source_name=source_name,
+                    imdb_id=imdb_id,
+                    rating=normalized_rating,
+                    raw_value=raw_rating,
+                )
+
+    def load_omdb_movies_dataset(self) -> None:
+        """Fetch target movies from OMDb and import them into Neo4j."""
+        titles = self._get_target_titles()
+        for title, year in titles:
+            year_suffix = f" ({year})" if year is not None else ""
+            print(f"Fetching from OMDb: {title}{year_suffix}")
+            payload = self.fetch_movie_from_omdb(title, year=year)
+            self._merge_movie_payload(payload)
 
     def verify_schema(self) -> SchemaStats:
         """Return node and relationship counts by type."""
@@ -253,7 +301,7 @@ class MovieGraphLoader:
 
 
 def run_phase1_load() -> None:
-    """Helper function to run the full Phase 1 loading flow."""
+    """Helper function to run the current import flow."""
     loader = MovieGraphLoader()
     try:
         print("Checking Neo4j connection...")
@@ -263,17 +311,14 @@ def run_phase1_load() -> None:
         print("Clearing old data...")
         loader.clear_database()
 
-        print("Loading sample movies dataset...")
-        loader.load_sample_movies_dataset()
-
-        print("Adding genre nodes...")
-        loader.add_genre_nodes()
+        print("Loading OMDb movies dataset...")
+        loader.load_omdb_movies_dataset()
 
         stats = loader.verify_schema()
         loader.print_schema_stats(stats)
         print("\nData loading finished.")
     except Neo4jError as exc:
-        print("Neo4j error during Phase 1 loading:")
+        print("Neo4j error during loading:")
         print(f"- {exc}")
         raise
     finally:
