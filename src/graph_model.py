@@ -4,12 +4,20 @@ from __future__ import annotations
 GRAPH_SCHEMA = {
     "nodes": {
         "Movie": {
-            "properties": ["title", "released", "tagline"],
+            "properties": ["title", "year", "tagline"],
             "description": "A movie entity.",
         },
-        "Person": {
+        "Actor": {
             "properties": ["name", "born"],
-            "description": "A person entity (actor, director, writer...).",
+            "description": "An actor node.",
+        },
+        "Director": {
+            "properties": ["name", "born"],
+            "description": "A director node.",
+        },
+        "User": {
+            "properties": ["name"],
+            "description": "A user who rates movies.",
         },
         "Genre": {
             "properties": ["name"],
@@ -17,12 +25,10 @@ GRAPH_SCHEMA = {
         },
     },
     "relationships": {
-        "ACTED_IN": {"from": "Person", "to": "Movie", "properties": ["roles"]},
-        "DIRECTED": {"from": "Person", "to": "Movie", "properties": []},
-        "PRODUCED": {"from": "Person", "to": "Movie", "properties": []},
-        "WROTE": {"from": "Person", "to": "Movie", "properties": []},
-        "REVIEWED": {"from": "Person", "to": "Movie", "properties": ["summary", "rating"]},
-        "BELONGS_TO": {"from": "Movie", "to": "Genre", "properties": []},
+        "ACTED_IN": {"from": "Actor", "to": "Movie", "properties": ["roles"]},
+        "DIRECTED": {"from": "Director", "to": "Movie", "properties": []},
+        "RATED": {"from": "User", "to": "Movie", "properties": ["rating"]},
+        "IN_GENRE": {"from": "Movie", "to": "Genre", "properties": []},
     },
 }
 

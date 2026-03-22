@@ -37,7 +37,7 @@ This will:
 - Print the conceptual graph schema
 - Try to connect to Neo4j
 - Load a small sample movie graph
-- Add simple genre nodes
+- Add simple `IN_GENRE` relationships
 - Print schema statistics
 - Save a schema figure to `outputs/figures/schema_diagram.png`
 
@@ -45,6 +45,8 @@ This will:
 
 - The code has simple English comments for learning purposes.
 - Work is intentionally incremental and testable, not all phases at once.
+- Current sample schema uses `Movie`, `Actor`, `Director`, `User`, and `Genre`.
+- Current sample relationships are `ACTED_IN`, `DIRECTED`, `RATED`, and `IN_GENRE`.
 - `matplotlib` is required now because the schema figure is part of the project output.
 - `node2vec` is not in the requirements for now because its current package constraints do not fit this Python version.
 - If you want to use VS Code terminal, run the `.ps1` scripts from the project root.

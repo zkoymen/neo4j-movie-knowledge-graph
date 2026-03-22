@@ -21,7 +21,9 @@ def visualize_schema() -> Path:
     # Node colors are fixed so students can read quickly.
     node_colors = {
         "Movie": "#4C8BF5",
-        "Person": "#34A853",
+        "Actor": "#34A853",
+        "Director": "#FB8C00",
+        "User": "#8E24AA",
         "Genre": "#EA4335",
     }
     for node in node_colors:
@@ -29,12 +31,10 @@ def visualize_schema() -> Path:
 
     # Keep edges explicit for clarity.
     edges = [
-        ("Person", "Movie", "ACTED_IN"),
-        ("Person", "Movie", "DIRECTED"),
-        ("Person", "Movie", "PRODUCED"),
-        ("Person", "Movie", "WROTE"),
-        ("Person", "Movie", "REVIEWED"),
-        ("Movie", "Genre", "BELONGS_TO"),
+        ("Actor", "Movie", "ACTED_IN"),
+        ("Director", "Movie", "DIRECTED"),
+        ("User", "Movie", "RATED"),
+        ("Movie", "Genre", "IN_GENRE"),
     ]
     for source, target, label in edges:
         graph.add_edge(source, target, label=label)
