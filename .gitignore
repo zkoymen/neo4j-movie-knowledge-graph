@@ -7,4 +7,5 @@ venv/
 .ipynb_checkpoints/
 outputs/figures/*.png
 outputs/results/*.csv
+outputs/raw/
 neo4j_data/

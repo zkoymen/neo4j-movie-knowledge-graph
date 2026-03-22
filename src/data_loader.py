@@ -2,6 +2,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import json
+from pathlib import Path
 from typing import Any, List, Tuple
 
 import requests
@@ -11,6 +13,8 @@ from neo4j.exceptions import Neo4jError
 import config
 
 OMDB_TIMEOUT_SECONDS = 20
+CACHE_DIR = Path("outputs/raw/omdb")
+CACHE_DIR.mkdir(parents=True, exist_ok=True)
 
 
 @dataclass
@@ -26,6 +30,14 @@ def _split_csv_field(value: str) -> list[str]:
     if not value or value == "N/A":
         return []
     return [item.strip() for item in value.split(",") if item.strip()]
+
+
+def _slugify(value: str) -> str:
+    """Make a filesystem-safe cache name."""
+    cleaned = "".join(char.lower() if char.isalnum() else "_" for char in value.strip())
+    while "__" in cleaned:
+        cleaned = cleaned.replace("__", "_")
+    return cleaned.strip("_")
 
 
 def _parse_title_seed(raw_value: str) -> tuple[str, int | None]:
@@ -118,6 +130,15 @@ class MovieGraphLoader:
         if not config.OMDB_API_KEY:
             raise RuntimeError("OMDB_API_KEY is missing in .env.")
 
+        cache_name = _slugify(title)
+        if year is not None:
+            cache_name = f"{cache_name}_{year}"
+        cache_path = CACHE_DIR / f"{cache_name}.json"
+
+        if config.OMDB_USE_CACHE and cache_path.exists():
+            print(f"Using cached OMDb response: {title}")
+            return json.loads(cache_path.read_text(encoding="utf-8"))
+
         params = {
             "apikey": config.OMDB_API_KEY,
             "t": title,
@@ -138,6 +159,11 @@ class MovieGraphLoader:
 
         if payload.get("Response") == "False":
             raise RuntimeError(f"OMDb could not find movie: {title} | {payload.get('Error')}")
+
+        cache_path.write_text(
+            json.dumps(payload, indent=2, ensure_ascii=False),
+            encoding="utf-8",
+        )
 
         return payload
 
