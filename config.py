@@ -18,6 +18,7 @@ NEO4J_USER = os.getenv("NEO4J_USER", "neo4j")
 NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "password")
 OMDB_API_KEY = os.getenv("OMDB_API_KEY", "")
 OMDB_BASE_URL = os.getenv("OMDB_BASE_URL", "https://www.omdbapi.com/")
+OMDB_USE_CACHE = os.getenv("OMDB_USE_CACHE", "true").lower() in {"1", "true", "yes", "y"}
 OMDB_MOVIE_TITLES = os.getenv(
     "OMDB_MOVIE_TITLES",
     (

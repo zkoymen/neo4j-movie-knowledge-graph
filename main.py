@@ -5,6 +5,7 @@ from neo4j.exceptions import DriverError, Neo4jError, ServiceUnavailable
 
 from src.cypher_queries import GraphExplorer
 from src.data_loader import run_phase1_load
+from src.feature_extraction import FeatureExtractor
 from src.graph_analysis import GraphAnalyzer
 from src.graph_model import print_schema
 from src.visualization import visualize_schema
@@ -65,6 +66,17 @@ def main() -> None:
 
         print("\n--- Graph Summary ---")
         print(summary_df)
+
+        print("\n6) Extracting manual actor features...")
+        extractor = FeatureExtractor()
+        try:
+            actor_features_df = extractor.extract_actor_features()
+            extractor.save_actor_features_to_neo4j(actor_features_df)
+        finally:
+            extractor.close()
+
+        print("\n--- Actor Features ---")
+        print(actor_features_df.head())
     except (Neo4jError, DriverError, ServiceUnavailable) as exc:
         print("\nNeo4j is not reachable or query failed.")
         print("Please check `.env` and Neo4j server status, then run again.")
