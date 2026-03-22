@@ -1,0 +1,10 @@
+.env
+__pycache__/
+*.pyc
+.venv/
+venv/
+*.egg-info/
+.ipynb_checkpoints/
+outputs/figures/*.png
+outputs/results/*.csv
+neo4j_data/
