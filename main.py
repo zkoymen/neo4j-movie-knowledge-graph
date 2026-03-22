@@ -7,7 +7,9 @@ from src.cypher_queries import GraphExplorer
 from src.data_loader import run_phase1_load
 from src.feature_extraction import FeatureExtractor
 from src.graph_analysis import GraphAnalyzer
+from src.link_prediction import LinkPredictor
 from src.graph_model import print_schema
+from src.projections import GraphProjections
 from src.visualization import visualize_schema
 
 
@@ -44,7 +46,7 @@ def main() -> None:
         print("\n--- Top Rated Movies ---")
         print(results["top_rated_movies"])
 
-        print("\n5) Running graph analysis...")
+        print("\n5) Running graph analysis on the core actor subgraph...")
         analyzer = GraphAnalyzer()
         try:
             analyzer.build_actor_cooccurrence_graph()
@@ -67,7 +69,7 @@ def main() -> None:
         print("\n--- Graph Summary ---")
         print(summary_df)
 
-        print("\n6) Extracting manual actor features...")
+        print("\n6) Extracting manual actor features from the core actor subgraph...")
         extractor = FeatureExtractor()
         try:
             actor_features_df = extractor.extract_actor_features()
@@ -77,6 +79,39 @@ def main() -> None:
 
         print("\n--- Actor Features ---")
         print(actor_features_df.head())
+
+        print("\n7) Building graph projections...")
+        projections = GraphProjections()
+        try:
+            actor_graph = projections.create_actor_cooccurrence_graph()
+            movie_graph = projections.create_movie_similarity_graph()
+        finally:
+            projections.close()
+
+        print(
+            {
+                "actor_projection_nodes": actor_graph.number_of_nodes(),
+                "actor_projection_edges": actor_graph.number_of_edges(),
+                "movie_similarity_nodes": movie_graph.number_of_nodes(),
+                "movie_similarity_edges": movie_graph.number_of_edges(),
+            }
+        )
+
+        print("\n8) Running link prediction on the actor projection...")
+        predictor = LinkPredictor(actor_graph)
+        predictor.prepare_dataset()
+        link_comparison_df = predictor.run_experiments()
+        link_rfe_df = predictor.recursive_feature_elimination()
+        predicted_links_df = predictor.predict_new_links()
+
+        print("\n--- Link Prediction Comparison ---")
+        print(link_comparison_df)
+
+        print("\n--- Link Prediction RFE ---")
+        print(link_rfe_df.head(10))
+
+        print("\n--- Predicted Actor Links ---")
+        print(predicted_links_df.head(10))
     except (Neo4jError, DriverError, ServiceUnavailable) as exc:
         print("\nNeo4j is not reachable or query failed.")
         print("Please check `.env` and Neo4j server status, then run again.")

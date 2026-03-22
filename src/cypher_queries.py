@@ -64,10 +64,11 @@ class GraphExplorer:
             """
             MATCH (m:Movie)
             OPTIONAL MATCH (:User)-[r:RATED]->(m)
+            WITH m, round(avg(r.rating) * 10) / 10.0 AS source_avg_rating, count(r) AS rating_count
             RETURN m.title AS title,
                    m.year AS year,
-                   coalesce(m.imdbRating, m.rating, round(avg(r.rating) * 10) / 10.0) AS avg_rating,
-                   count(r) AS rating_count
+                   coalesce(m.imdbRating, m.rating, source_avg_rating) AS avg_rating,
+                   rating_count
             ORDER BY avg_rating DESC, rating_count DESC, title
             """
         )

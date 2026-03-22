@@ -26,10 +26,10 @@ class FeatureExtractor:
         """Close the Neo4j driver."""
         self.driver.close()
 
-    def _query_to_df(self, query: str) -> pd.DataFrame:
+    def _query_to_df(self, query: str, **params: object) -> pd.DataFrame:
         """Run query and convert rows to DataFrame."""
         with self.driver.session(database=config.NEO4J_DATABASE) as session:
-            result = session.run(query)
+            result = session.run(query, **params)
             return pd.DataFrame([dict(record) for record in result])
 
     def extract_actor_features(self) -> pd.DataFrame:
@@ -40,12 +40,14 @@ class FeatureExtractor:
             degree_df = analyzer.compute_degree_distribution()
             centrality_df = analyzer.compute_centralities()
             community_df = analyzer.detect_communities()
+            core_actor_nodes = analyzer.core_actor_nodes
         finally:
             analyzer.close()
 
         movie_feature_df = self._query_to_df(
             """
             MATCH (a:Actor)-[:ACTED_IN]->(m:Movie)
+            WHERE a.name IN $actor_names
             OPTIONAL MATCH (a)-[:ACTED_IN]->(:Movie)<-[:DIRECTED]-(d:Director)
             OPTIONAL MATCH (a)-[:ACTED_IN]->(:Movie)-[:IN_GENRE]->(g:Genre)
             RETURN a.name AS node,
@@ -54,7 +56,8 @@ class FeatureExtractor:
                    count(DISTINCT d) AS director_count,
                    count(DISTINCT g) AS genre_diversity
             ORDER BY node
-            """
+            """,
+            actor_names=core_actor_nodes,
         )
 
         features_df = (
