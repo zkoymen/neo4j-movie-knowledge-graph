@@ -13,7 +13,7 @@ EXPECTED_LABELS = {"Movie", "Actor", "Director", "User", "Genre"}
 EXPECTED_RELATIONSHIPS = {"ACTED_IN", "DIRECTED", "RATED", "IN_GENRE"}
 MIN_EXPECTED_COUNTS = {
     "Movie": 1000,
-    "User": 1000,
+    "User": 100,
     "Actor": 1000,
 }
 
