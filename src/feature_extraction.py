@@ -28,7 +28,7 @@ class FeatureExtractor:
 
     def _query_to_df(self, query: str) -> pd.DataFrame:
         """Run query and convert rows to DataFrame."""
-        with self.driver.session() as session:
+        with self.driver.session(database=config.NEO4J_DATABASE) as session:
             result = session.run(query)
             return pd.DataFrame([dict(record) for record in result])
 
@@ -48,13 +48,11 @@ class FeatureExtractor:
             MATCH (a:Actor)-[:ACTED_IN]->(m:Movie)
             OPTIONAL MATCH (a)-[:ACTED_IN]->(:Movie)<-[:DIRECTED]-(d:Director)
             OPTIONAL MATCH (a)-[:ACTED_IN]->(:Movie)-[:IN_GENRE]->(g:Genre)
-            OPTIONAL MATCH (a)-[:ACTED_IN]->(:Movie)-[:IN_COUNTRY]->(c:Country)
             RETURN a.name AS node,
                    count(DISTINCT m) AS movie_count,
-                   round(avg(m.rating) * 10) / 10.0 AS avg_movie_rating,
+                   round(avg(coalesce(m.imdbRating, m.rating)) * 10) / 10.0 AS avg_movie_rating,
                    count(DISTINCT d) AS director_count,
-                   count(DISTINCT g) AS genre_diversity,
-                   count(DISTINCT c) AS country_diversity
+                   count(DISTINCT g) AS genre_diversity
             ORDER BY node
             """
         )
@@ -72,7 +70,7 @@ class FeatureExtractor:
 
     def save_actor_features_to_neo4j(self, features_df: pd.DataFrame) -> None:
         """Write extracted features back to Actor nodes."""
-        with self.driver.session() as session:
+        with self.driver.session(database=config.NEO4J_DATABASE) as session:
             for row in features_df.to_dict(orient="records"):
                 session.run(
                     """
@@ -86,8 +84,7 @@ class FeatureExtractor:
                         a.movie_count = $movie_count,
                         a.avg_movie_rating = $avg_movie_rating,
                         a.director_count = $director_count,
-                        a.genre_diversity = $genre_diversity,
-                        a.country_diversity = $country_diversity
+                        a.genre_diversity = $genre_diversity
                     """,
                     name=row["node"],
                     degree=int(row["degree"]),
@@ -100,7 +97,6 @@ class FeatureExtractor:
                     avg_movie_rating=float(row["avg_movie_rating"]),
                     director_count=int(row["director_count"]),
                     genre_diversity=int(row["genre_diversity"]),
-                    country_diversity=int(row["country_diversity"]),
                 )
 
 

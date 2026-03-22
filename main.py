@@ -24,7 +24,7 @@ def main() -> None:
     figure_path = visualize_schema()
     print(f"Schema diagram saved: {figure_path}")
 
-    print("\n3) Loading and validating OMDb data in Neo4j...")
+    print("\n3) Validating recommendations dump data in Neo4j...")
     try:
         run_phase1_load()
 

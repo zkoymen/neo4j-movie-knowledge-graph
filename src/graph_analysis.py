@@ -32,7 +32,7 @@ class GraphAnalyzer:
         """Create an undirected graph where actors connect by shared movies."""
         graph = nx.Graph()
 
-        with self.driver.session() as session:
+        with self.driver.session(database=config.NEO4J_DATABASE) as session:
             result = session.run(
                 """
                 MATCH (a1:Actor)-[:ACTED_IN]->(m:Movie)<-[:ACTED_IN]-(a2:Actor)

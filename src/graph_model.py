@@ -4,16 +4,7 @@ from __future__ import annotations
 GRAPH_SCHEMA = {
     "nodes": {
         "Movie": {
-            "properties": [
-                "title",
-                "year",
-                "rating",
-                "imdb_id",
-                "rated",
-                "released",
-                "runtime",
-                "plot",
-            ],
+            "properties": ["title", "year", "plot"],
             "description": "A movie entity.",
         },
         "Actor": {
@@ -26,15 +17,11 @@ GRAPH_SCHEMA = {
         },
         "User": {
             "properties": ["name"],
-            "description": "A rating source node.",
+            "description": "A user who rates movies.",
         },
         "Genre": {
             "properties": ["name"],
             "description": "A movie genre label.",
-        },
-        "Country": {
-            "properties": ["name"],
-            "description": "A country connected to a movie.",
         },
     },
     "relationships": {
@@ -42,7 +29,6 @@ GRAPH_SCHEMA = {
         "DIRECTED": {"from": "Director", "to": "Movie", "properties": []},
         "RATED": {"from": "User", "to": "Movie", "properties": ["rating"]},
         "IN_GENRE": {"from": "Movie", "to": "Genre", "properties": []},
-        "IN_COUNTRY": {"from": "Movie", "to": "Country", "properties": []},
     },
 }
 

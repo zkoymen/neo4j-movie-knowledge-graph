@@ -2,10 +2,10 @@
 
 This repository follows the roadmap in `PROJECT_PLAN.md`.
 
-Current status:
-- Phase 0 started: project structure and configuration files created.
-- Phase 1 started: graph schema, data loading, and first visualization modules added.
-- Later phases are left for next iterations on purpose.
+Current direction:
+- The project uses the Neo4j `recommendations` dump dataset.
+- Neo4j Desktop loads the dump.
+- Python validates the graph, runs exploration, computes topology metrics, and extracts manual features.
 
 ## 1. Setup
 
@@ -15,40 +15,45 @@ Current status:
 .\setup_env.ps1
 ```
 
-This project currently uses the local `.venv` environment.
+2. Copy `.env.example` to `.env` and fill your Neo4j connection values.
 
-2. Install dependencies manually if you want:
+Important fields:
+- `NEO4J_URI`
+- `NEO4J_USER`
+- `NEO4J_PASSWORD`
+- `NEO4J_DATABASE`
 
-```bash
-.\.venv\Scripts\python -m pip install -r requirements.txt
-```
+Desktop load steps:
+- See `LOAD_RECOMMENDATIONS_DATASET.md`
 
-3. Copy `.env.example` to `.env` and fill your Neo4j credentials.
-4. Add `OMDB_API_KEY` in `.env` when you are ready to pull data from OMDb.
+## 2. Dataset
 
-The versions in `requirements.txt` were updated to match what installs on Python `3.14`.
+Use the Neo4j recommendations example dataset:
+- Repository: `neo4j-graph-examples/recommendations`
+- Dump file: `data/recommendations-40.dump`
 
-## 2. Run (Phase 1)
+The Python code expects the graph model from that dataset:
+- Nodes: `Movie`, `Actor`, `Director`, `User`, `Genre`
+- Relationships: `ACTED_IN`, `DIRECTED`, `RATED`, `IN_GENRE`
 
-```bash
+## 3. Run
+
+```powershell
 .\run_project.ps1
 ```
 
 This will:
 - Print the conceptual graph schema
-- Try to connect to Neo4j
-- Pull movie data from OMDb
-- Print schema statistics
-- Run basic Phase 2 exploration queries
+- Validate the loaded dump dataset
+- Run exploration queries
+- Compute graph metrics
+- Extract manual actor features
 - Save CSV tables in `outputs/results/`
 - Save a schema figure to `outputs/figures/schema_diagram.png`
 
-## 3. Notes
+## 4. Notes
 
 - The code has simple English comments for learning purposes.
-- Work is intentionally incremental and testable, not all phases at once.
-- Current schema uses `Movie`, `Actor`, `Director`, `User`, `Genre`, and `Country`.
-- Current relationships are `ACTED_IN`, `DIRECTED`, `RATED`, `IN_GENRE`, and `IN_COUNTRY`.
-- `matplotlib` is required now because the schema figure is part of the project output.
-- `node2vec` is not in the requirements for now because its current package constraints do not fit this Python version.
+- The project now assumes the graph is already loaded in Neo4j Desktop.
+- `matplotlib` is required because the schema figure is part of the project output.
 - If you want to use VS Code terminal, run the `.ps1` scripts from the project root.
