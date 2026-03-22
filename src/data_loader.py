@@ -180,6 +180,16 @@ class MovieGraphLoader:
                     rating=rating,
                 )
 
+            # Save average user rating back to each movie node.
+            session.run(
+                """
+                MATCH (m:Movie)
+                OPTIONAL MATCH (:User)-[r:RATED]->(m)
+                WITH m, avg(r.rating) AS avg_rating
+                SET m.rating = round(coalesce(avg_rating, 0.0) * 10) / 10.0
+                """
+            )
+
     def add_genre_nodes(self) -> None:
         """
         Create Genre nodes and IN_GENRE links.
