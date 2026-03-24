@@ -1,9 +1,9 @@
 # Project Progress Log
 
-Last updated: 2026-03-22
+Last updated: 2026-03-24
 Project: COM4514 Special Topics II - Building and Analyzing a Knowledge Graph from Movie Data
 Dataset in current use: Neo4j recommendations dump dataset
-Current status: Phase 1 completed, Phase 2 completed, Phase 3 partially completed
+Current status: Phase 1 completed, Phase 2 completed, Phase 3 mostly implemented
 
 ## 1. Project Goal
 
@@ -347,12 +347,60 @@ The local network neighborhood and structural similarity are very important for 
 
 The project is not finished yet.
 Main remaining tasks:
-- node classification task
-- knowledge graph completion task
+- runtime validation of node classification on live Neo4j
+- runtime validation of knowledge graph completion on live Neo4j
 - more visualization for report-ready figures
 - final comparison tables for the report
 - final explanation text for methods and findings
 - video demo planning
+
+## 9A. New Milestone on 2026-03-24
+
+### Milestone H - Node classification pipeline implemented
+Completed in code:
+- created `src/node_classification.py`
+- built a supervised node classification task
+- target label: dominant actor genre
+- merged graph-derived labels with manual actor features
+- added train/test split
+- added three classifiers
+- added GridSearchCV
+- added RFE
+- added prediction export for the test set
+
+Current model family set:
+- Logistic Regression
+- Random Forest
+- Gradient Boosting
+
+Important note:
+This step was implemented and syntax-checked, but not runtime-tested in this session because Neo4j was offline during development.
+
+### Milestone I - Knowledge graph completion pipeline implemented
+Completed in code:
+- created `src/kg_completion.py`
+- exported a semantic triple set from Neo4j
+- added PyKEEN `TransE` experiment
+- added train / test / validation split
+- added metrics export
+- added predicted missing `IN_GENRE` links export
+
+Important note:
+This step was implemented and syntax-checked, but not runtime-tested in this session because Neo4j was offline during development.
+
+### Milestone J - Main orchestration updated
+Completed:
+- `main.py` now includes
+  - exploration
+  - graph analysis
+  - feature extraction
+  - projections
+  - link prediction
+  - node classification
+  - knowledge graph completion
+
+Reason:
+The project now has one main pipeline file that is much closer to the full course deliverable.
 
 ## 10. Practical Notes for the Final Report
 

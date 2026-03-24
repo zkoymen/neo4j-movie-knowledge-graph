@@ -7,7 +7,9 @@ from src.cypher_queries import GraphExplorer
 from src.data_loader import run_phase1_load
 from src.feature_extraction import FeatureExtractor
 from src.graph_analysis import GraphAnalyzer
+from src.kg_completion import KGCompletionExperiment
 from src.link_prediction import LinkPredictor
+from src.node_classification import NodeClassifier
 from src.graph_model import print_schema
 from src.projections import GraphProjections
 from src.visualization import visualize_schema
@@ -112,6 +114,44 @@ def main() -> None:
 
         print("\n--- Predicted Actor Links ---")
         print(predicted_links_df.head(10))
+
+        print("\n9) Running node classification on actor dominant genre labels...")
+        classifier = NodeClassifier()
+        try:
+            classifier.build_dataset()
+            classifier.prepare_train_test_split()
+            node_comparison_df = classifier.run_experiments()
+            node_rfe_df = classifier.recursive_feature_elimination()
+            node_predictions_df = classifier.predict_test_labels()
+        finally:
+            classifier.close()
+
+        print("\n--- Node Classification Comparison ---")
+        print(node_comparison_df)
+
+        print("\n--- Node Classification RFE ---")
+        print(node_rfe_df.head(10))
+
+        print("\n--- Node Classification Predictions ---")
+        print(node_predictions_df.head(10))
+
+        print("\n10) Running knowledge graph completion experiment...")
+        kg_experiment = KGCompletionExperiment()
+        try:
+            kg_triples_df = kg_experiment.export_triples()
+            kg_metrics_df = kg_experiment.run_experiment()
+            kg_predictions_df = kg_experiment.predict_missing_genres()
+        finally:
+            kg_experiment.close()
+
+        print("\n--- KG Completion Triples ---")
+        print(kg_triples_df.head(10))
+
+        print("\n--- KG Completion Metrics ---")
+        print(kg_metrics_df)
+
+        print("\n--- KG Completion Predictions ---")
+        print(kg_predictions_df.head(10))
     except (Neo4jError, DriverError, ServiceUnavailable) as exc:
         print("\nNeo4j is not reachable or query failed.")
         print("Please check `.env` and Neo4j server status, then run again.")
