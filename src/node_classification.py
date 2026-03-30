@@ -83,15 +83,12 @@ class NodeClassifier:
         """Merge manual features with dominant genre labels."""
         feature_df = self._load_actor_features()
         label_df = self._query_labels()
+        merged_df = feature_df.merge(label_df, on="node", how="inner").copy()
+        genre_counts = merged_df["dominant_genre"].value_counts()
+        eligible_genres = genre_counts.loc[genre_counts >= 6]
+        top_genres = eligible_genres.head(config.NODE_CLASSIFICATION_TOP_GENRES).index.tolist()
 
-        genre_counts = label_df["dominant_genre"].value_counts()
-        top_genres = genre_counts.head(config.NODE_CLASSIFICATION_TOP_GENRES).index.tolist()
-
-        dataset = (
-            feature_df.merge(label_df, on="node", how="inner")
-            .loc[lambda frame: frame["dominant_genre"].isin(top_genres)]
-            .copy()
-        )
+        dataset = merged_df.loc[merged_df["dominant_genre"].isin(top_genres)].copy()
 
         if dataset.empty:
             raise ValueError("Node classification dataset is empty after filtering top genres.")
@@ -180,7 +177,6 @@ class NodeClassifier:
                 "model": LogisticRegression(
                     max_iter=2000,
                     random_state=config.RANDOM_STATE,
-                    multi_class="auto",
                 ),
                 "params": {"C": [0.1, 1.0, 10.0]},
                 "use_scaled": True,
@@ -236,6 +232,7 @@ class NodeClassifier:
                 classification_report(
                     y_test,
                     predictions,
+                    labels=list(range(len(self.label_encoder.classes_))),
                     target_names=self.label_encoder.classes_,
                     output_dict=True,
                     zero_division=0,

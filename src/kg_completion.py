@@ -29,6 +29,7 @@ class KGCompletionExperiment:
         self.testing = None
         self.validation = None
         self.pipeline_result = None
+        self.genre_targets: list[str] = []
 
     def close(self) -> None:
         """Close Neo4j driver."""
@@ -81,6 +82,7 @@ class KGCompletionExperiment:
         triples_df = pd.concat([acted_in_df, directed_df, genre_df], ignore_index=True).drop_duplicates()
         triples_df = triples_df.head(config.KG_COMPLETION_MAX_TRIPLES).reset_index(drop=True)
         triples_df.to_csv(RESULTS_DIR / "kg_completion_triples.csv", index=False)
+        self.genre_targets = sorted(genre_df["tail"].dropna().astype(str).unique().tolist())
 
         self.triples_df = triples_df
         return triples_df
@@ -127,13 +129,7 @@ class KGCompletionExperiment:
         metrics = getattr(self.pipeline_result, "metric_results", None)
         if metrics is not None:
             metric_dict = metrics.to_dict()
-            flat_metrics = {}
-            for outer_key, outer_value in metric_dict.items():
-                if isinstance(outer_value, dict):
-                    for inner_key, inner_value in outer_value.items():
-                        flat_metrics[f"{outer_key}.{inner_key}"] = inner_value
-                else:
-                    flat_metrics[outer_key] = outer_value
+            flat_metrics = self._flatten_dict(metric_dict)
             metric_rows.append(flat_metrics)
 
         metrics_df = pd.DataFrame(metric_rows if metric_rows else [{"status": "completed"}])
@@ -164,6 +160,7 @@ class KGCompletionExperiment:
                 head=movie_title,
                 relation="IN_GENRE",
                 triples_factory=self.training,
+                targets=self.genre_targets,
             )
 
             prediction_df = predictions.df.copy()
@@ -187,6 +184,17 @@ class KGCompletionExperiment:
         prediction_df = prediction_df.head(config.KG_COMPLETION_TOP_PREDICTIONS).reset_index(drop=True)
         prediction_df.to_csv(RESULTS_DIR / "kg_completion_predictions.csv", index=False)
         return prediction_df
+
+    def _flatten_dict(self, data: dict, prefix: str = "") -> dict:
+        """Flatten nested metric dictionaries into one level."""
+        flattened = {}
+        for key, value in data.items():
+            new_key = f"{prefix}.{key}" if prefix else str(key)
+            if isinstance(value, dict):
+                flattened.update(self._flatten_dict(value, new_key))
+            else:
+                flattened[new_key] = value
+        return flattened
 
 
 if __name__ == "__main__":

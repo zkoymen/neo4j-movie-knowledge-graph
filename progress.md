@@ -1,9 +1,9 @@
 # Project Progress Log
 
-Last updated: 2026-03-24
+Last updated: 2026-03-30
 Project: COM4514 Special Topics II - Building and Analyzing a Knowledge Graph from Movie Data
 Dataset in current use: Neo4j recommendations dump dataset
-Current status: Phase 1 completed, Phase 2 completed, Phase 3 mostly implemented
+Current status: Phase 1 completed, Phase 2 completed, Phase 3 implemented and runtime-validated
 
 ## 1. Project Goal
 
@@ -347,8 +347,6 @@ The local network neighborhood and structural similarity are very important for 
 
 The project is not finished yet.
 Main remaining tasks:
-- runtime validation of node classification on live Neo4j
-- runtime validation of knowledge graph completion on live Neo4j
 - more visualization for report-ready figures
 - final comparison tables for the report
 - final explanation text for methods and findings
@@ -374,7 +372,7 @@ Current model family set:
 - Gradient Boosting
 
 Important note:
-This step was implemented and syntax-checked, but not runtime-tested in this session because Neo4j was offline during development.
+This step was later runtime-tested successfully on 2026-03-30.
 
 ### Milestone I - Knowledge graph completion pipeline implemented
 Completed in code:
@@ -386,7 +384,7 @@ Completed in code:
 - added predicted missing `IN_GENRE` links export
 
 Important note:
-This step was implemented and syntax-checked, but not runtime-tested in this session because Neo4j was offline during development.
+This step was later runtime-tested successfully on 2026-03-30.
 
 ### Milestone J - Main orchestration updated
 Completed:
@@ -401,6 +399,57 @@ Completed:
 
 Reason:
 The project now has one main pipeline file that is much closer to the full course deliverable.
+
+## 9B. Runtime Validation on 2026-03-30
+
+### Node classification validation
+Node classification was run successfully on the live Neo4j dataset.
+
+Task definition used:
+- classify actors by dominant genre
+- use manually extracted graph features as inputs
+
+Final filtered class distribution used:
+- Comedy: 91
+- Drama: 58
+- Documentary: 8
+
+Reason for filtering:
+- very small classes were removed because they were unstable for cross-validation
+- this made the comparison more defensible
+
+Result summary:
+- dataset rows: 157
+- best model: Random Forest
+- best F1-Macro: 0.6993
+
+Important selected features from RFE:
+- avg_movie_rating
+- betweenness_centrality
+- closeness_centrality
+- director_count
+- pagerank
+- purity
+
+### Knowledge graph completion validation
+Knowledge graph completion was also run successfully on the live Neo4j dataset.
+
+Task definition used:
+- export a semantic triple set
+- train a PyKEEN TransE model
+- predict possible missing `IN_GENRE` links
+
+Run summary:
+- triples used: 36772
+- relation types: 3
+- genre candidates restricted to real genre labels only
+- top predictions saved to CSV
+
+Important correction:
+- early prediction output mixed non-genre entities into `IN_GENRE` suggestions
+- this was fixed by restricting prediction targets to the true set of `Genre` entities
+
+This was an important milestone because it made the KG completion output semantically correct.
 
 ## 10. Practical Notes for the Final Report
 
