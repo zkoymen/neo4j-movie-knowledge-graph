@@ -32,18 +32,46 @@ class FeatureExtractor:
             result = session.run(query, **params)
             return pd.DataFrame([dict(record) for record in result])
 
-    def extract_actor_features(self) -> pd.DataFrame:
-        """Build a feature table for actors."""
-        analyzer = GraphAnalyzer()
+    def extract_actor_features(
+        self,
+        min_movie_count: int | None = None,
+        max_actors: int | None = None,
+        output_name: str = "actor_features.csv",
+        save_analysis_outputs: bool = True,
+        analysis_output_prefix: str = "",
+    ) -> pd.DataFrame:
+        """
+        Build a feature table for actors.
+
+        We keep this method configurable because the project now needs
+        two different actor scopes:
+        - a report-friendly core graph
+        - a broader set for node classification
+        """
+        if min_movie_count is None:
+            min_movie_count = config.CORE_ACTOR_MIN_MOVIES
+        if max_actors is None:
+            max_actors = config.CORE_ACTOR_MAX_ACTORS
+
+        analyzer = GraphAnalyzer(
+            save_outputs=save_analysis_outputs,
+            output_prefix=analysis_output_prefix,
+        )
         try:
-            analyzer.build_actor_cooccurrence_graph()
+            # First we build the actor graph for the requested scope.
+            analyzer.build_actor_cooccurrence_graph(
+                min_movie_count=min_movie_count,
+                max_actors=max_actors,
+            )
             degree_df = analyzer.compute_degree_distribution()
             centrality_df = analyzer.compute_centralities()
             community_df = analyzer.detect_communities()
+            analyzer.get_graph_summary()
             core_actor_nodes = analyzer.core_actor_nodes
         finally:
             analyzer.close()
 
+        # Then we collect simple movie-side features for the same actor set.
         movie_feature_df = self._query_to_df(
             """
             MATCH (a:Actor)-[:ACTED_IN]->(m:Movie)
@@ -60,6 +88,7 @@ class FeatureExtractor:
             actor_names=core_actor_nodes,
         )
 
+        # Last we merge all manual features into one ML-ready table.
         features_df = (
             degree_df.merge(centrality_df, on="node", how="left")
             .merge(community_df, on="node", how="left")
@@ -68,7 +97,7 @@ class FeatureExtractor:
             .reset_index(drop=True)
         )
 
-        features_df.to_csv(RESULTS_DIR / "actor_features.csv", index=False)
+        features_df.to_csv(RESULTS_DIR / output_name, index=False)
         return features_df
 
     def save_actor_features_to_neo4j(self, features_df: pd.DataFrame) -> None:

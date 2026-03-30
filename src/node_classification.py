@@ -13,6 +13,7 @@ from sklearn.model_selection import GridSearchCV, train_test_split
 from sklearn.preprocessing import LabelEncoder, StandardScaler
 
 import config
+from src.feature_extraction import FeatureExtractor
 
 RESULTS_DIR = Path("outputs/results")
 RESULTS_DIR.mkdir(parents=True, exist_ok=True)
@@ -20,6 +21,8 @@ RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 
 class NodeClassifier:
     """Classify actors by their dominant movie genre."""
+
+    FEATURE_FILE = "actor_features_classification.csv"
 
     def __init__(self) -> None:
         self.driver = GraphDatabase.driver(
@@ -39,12 +42,23 @@ class NodeClassifier:
         self.driver.close()
 
     def _load_actor_features(self) -> pd.DataFrame:
-        """Load actor manual features created earlier."""
-        feature_path = RESULTS_DIR / "actor_features.csv"
+        """Load or build a broader actor feature table for classification."""
+        feature_path = RESULTS_DIR / self.FEATURE_FILE
         if not feature_path.exists():
-            raise FileNotFoundError(
-                "actor_features.csv is missing. Run feature extraction before node classification."
-            )
+            extractor = FeatureExtractor()
+            try:
+                # Node classification needs broader coverage than the old 1495-actor core.
+                features_df = extractor.extract_actor_features(
+                    min_movie_count=config.CLASSIFICATION_ACTOR_MIN_MOVIES,
+                    max_actors=config.CLASSIFICATION_ACTOR_MAX_ACTORS,
+                    output_name=self.FEATURE_FILE,
+                    save_analysis_outputs=True,
+                    analysis_output_prefix="classification_",
+                )
+                extractor.save_actor_features_to_neo4j(features_df)
+            finally:
+                extractor.close()
+
         return pd.read_csv(feature_path)
 
     def _query_labels(self) -> pd.DataFrame:
@@ -84,11 +98,19 @@ class NodeClassifier:
         feature_df = self._load_actor_features()
         label_df = self._query_labels()
         merged_df = feature_df.merge(label_df, on="node", how="inner").copy()
-        genre_counts = merged_df["dominant_genre"].value_counts()
-        eligible_genres = genre_counts.loc[genre_counts >= 6]
-        top_genres = eligible_genres.head(config.NODE_CLASSIFICATION_TOP_GENRES).index.tolist()
 
-        dataset = merged_df.loc[merged_df["dominant_genre"].isin(top_genres)].copy()
+        # We do not want one or two-sample classes in 3-fold CV.
+        # Instead of keeping every tiny label, we keep stable classes
+        # and move the sparse tail into a single "Other" class.
+        genre_counts = merged_df["dominant_genre"].value_counts()
+        stable_genres = genre_counts.loc[genre_counts >= 15].index.tolist()
+        top_genres = stable_genres[: config.NODE_CLASSIFICATION_TOP_GENRES]
+
+        dataset = merged_df.copy()
+        dataset["dominant_genre"] = dataset["dominant_genre"].where(
+            dataset["dominant_genre"].isin(top_genres),
+            "Other",
+        )
 
         if dataset.empty:
             raise ValueError("Node classification dataset is empty after filtering top genres.")
@@ -108,6 +130,10 @@ class NodeClassifier:
             "purity",
         ]
         dataset = dataset[["node", "dominant_genre", *feature_columns]].dropna().reset_index(drop=True)
+
+        final_counts = dataset["dominant_genre"].value_counts()
+        dataset = dataset.loc[dataset["dominant_genre"].isin(final_counts.loc[final_counts >= 10].index)].copy()
+        dataset = dataset.reset_index(drop=True)
 
         dataset.to_csv(RESULTS_DIR / "node_classification_dataset.csv", index=False)
         genre_counts = (
