@@ -580,6 +580,101 @@ Interpretation:
 - the improvement is not huge, but it is real
 - this is useful for the report because it shows that richer graph-context features improved prediction quality
 
+## 9E. Task Redesign for Better Node Classification on 2026-03-30
+
+### New bottleneck discovered
+Even after broadening actor coverage and adding ReFeX-style features, the actor-based node classification task was still limited.
+
+Main bottleneck:
+- `actor dominant genre` is a noisy label
+- many actors have mixed genre history
+- minority actor classes remained weak
+
+Conclusion:
+- the task definition itself was holding performance back
+- this was not only a model-tuning issue
+
+### New decision
+The node classification task was redesigned as:
+- `single-genre movie classification`
+
+Reason:
+- a movie with exactly one genre has a cleaner label
+- this removes much of the ambiguity in the actor-based task
+- it is more suitable for a stronger supervised learning benchmark
+
+### Important leakage control
+The movie graph for classification was built without using genre edges as input features.
+
+Used for movie-movie links:
+- shared actors
+- shared directors
+
+Not used in the movie feature graph:
+- `IN_GENRE` edges
+
+Reason:
+- using genre edges to predict genre would leak the label into the input
+
+### Important data integrity fix
+An additional bug was found during this redesign:
+- movie nodes were initially keyed by title
+- duplicate movie titles caused accidental merges
+
+This was fixed by switching to a unique movie key based on:
+- `movieId`
+- or fallback IDs
+- or `title + year` if needed
+
+This was an important correction because it made the classification results more trustworthy.
+
+### Final movie classification label distribution
+Using single-genre movies with at least 50 examples per class:
+- Drama: 1156
+- Comedy: 804
+- Documentary: 359
+- Horror: 182
+- Thriller: 74
+
+Total final rows:
+- 2575
+
+### Movie classification result with manual features
+Best model:
+- Random Forest
+
+Result:
+- Accuracy: 0.6816
+- F1-Macro: 0.4976
+
+### Movie classification result with ReFeX-style features
+Best model:
+- Gradient Boosting
+
+Result:
+- Accuracy: 0.7204
+- F1-Macro: 0.5727
+
+### Why this result is better
+Old actor-based ReFeX node classification:
+- F1-Macro: 0.4884
+
+New movie-based ReFeX node classification:
+- F1-Macro: 0.5727
+
+The improvement is meaningful because:
+- the labels are cleaner
+- the dataset is larger
+- the task is more defensible
+- the score is clearly above the majority-class baseline
+
+### Baseline comparison
+Movie task majority baseline:
+- Accuracy: 0.4485
+- F1-Macro: 0.1239
+
+This means the final movie ReFeX model is much better than a trivial baseline.
+
 ## 10. Practical Notes for the Final Report
 
 Useful story for the report:
@@ -620,3 +715,4 @@ This file is meant to help with:
 - tracking bottlenecks and fixes
 - giving future LLM prompts accurate project context
 - avoiding repeated confusion about what has already been done
+
