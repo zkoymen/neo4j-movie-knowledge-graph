@@ -22,13 +22,21 @@ RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 class NodeClassifier:
     """Classify actors by their dominant movie genre."""
 
-    FEATURE_FILE = "actor_features_classification.csv"
+    DEFAULT_FEATURE_FILE = "actor_features_classification.csv"
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        feature_file: str | None = None,
+        output_prefix: str = "",
+        auto_build_features: bool = True,
+    ) -> None:
         self.driver = GraphDatabase.driver(
             config.NEO4J_URI,
             auth=(config.NEO4J_USER, config.NEO4J_PASSWORD),
         )
+        self.feature_file = feature_file or self.DEFAULT_FEATURE_FILE
+        self.output_prefix = output_prefix
+        self.auto_build_features = auto_build_features
         self.dataset: pd.DataFrame | None = None
         self.train_df: pd.DataFrame | None = None
         self.test_df: pd.DataFrame | None = None
@@ -41,17 +49,28 @@ class NodeClassifier:
         """Close Neo4j driver."""
         self.driver.close()
 
+    def _result_path(self, filename: str) -> Path:
+        """Build a result file path for this classifier run."""
+        if self.output_prefix:
+            return RESULTS_DIR / f"{self.output_prefix}{filename}"
+        return RESULTS_DIR / filename
+
     def _load_actor_features(self) -> pd.DataFrame:
         """Load or build a broader actor feature table for classification."""
-        feature_path = RESULTS_DIR / self.FEATURE_FILE
+        feature_path = RESULTS_DIR / self.feature_file
         if not feature_path.exists():
+            if not self.auto_build_features:
+                raise FileNotFoundError(
+                    f"{self.feature_file} is missing and auto-build is disabled."
+                )
+
             extractor = FeatureExtractor()
             try:
                 # Node classification needs broader coverage than the old 1495-actor core.
                 features_df = extractor.extract_actor_features(
                     min_movie_count=config.CLASSIFICATION_ACTOR_MIN_MOVIES,
                     max_actors=config.CLASSIFICATION_ACTOR_MAX_ACTORS,
-                    output_name=self.FEATURE_FILE,
+                    output_name=self.feature_file,
                     save_analysis_outputs=True,
                     analysis_output_prefix="classification_",
                 )
@@ -115,19 +134,13 @@ class NodeClassifier:
         if dataset.empty:
             raise ValueError("Node classification dataset is empty after filtering top genres.")
 
-        # We keep only simple numeric inputs for the models.
+        # We keep all numeric columns except the helper label columns.
+        # This makes the classifier reusable for both manual features and ReFeX features.
         feature_columns = [
-            "degree",
-            "degree_centrality",
-            "betweenness_centrality",
-            "closeness_centrality",
-            "pagerank",
-            "community",
-            "movie_count",
-            "avg_movie_rating",
-            "director_count",
-            "genre_diversity",
-            "purity",
+            column
+            for column in dataset.columns
+            if column not in {"node", "dominant_genre", "top_freq", "total_freq"}
+            and pd.api.types.is_numeric_dtype(dataset[column])
         ]
         dataset = dataset[["node", "dominant_genre", *feature_columns]].dropna().reset_index(drop=True)
 
@@ -135,14 +148,17 @@ class NodeClassifier:
         dataset = dataset.loc[dataset["dominant_genre"].isin(final_counts.loc[final_counts >= 10].index)].copy()
         dataset = dataset.reset_index(drop=True)
 
-        dataset.to_csv(RESULTS_DIR / "node_classification_dataset.csv", index=False)
+        dataset.to_csv(self._result_path("node_classification_dataset.csv"), index=False)
         genre_counts = (
             dataset["dominant_genre"]
             .value_counts()
             .rename_axis("genre")
             .reset_index(name="actor_count")
         )
-        genre_counts.to_csv(RESULTS_DIR / "node_classification_label_distribution.csv", index=False)
+        genre_counts.to_csv(
+            self._result_path("node_classification_label_distribution.csv"),
+            index=False,
+        )
 
         self.dataset = dataset
         return dataset
@@ -164,8 +180,8 @@ class NodeClassifier:
 
         train_df = train_df.reset_index(drop=True)
         test_df = test_df.reset_index(drop=True)
-        train_df.to_csv(RESULTS_DIR / "node_classification_train.csv", index=False)
-        test_df.to_csv(RESULTS_DIR / "node_classification_test.csv", index=False)
+        train_df.to_csv(self._result_path("node_classification_train.csv"), index=False)
+        test_df.to_csv(self._result_path("node_classification_test.csv"), index=False)
 
         self.train_df = train_df
         self.test_df = test_df
@@ -265,12 +281,14 @@ class NodeClassifier:
                 )
             ).transpose()
             report_df.to_csv(
-                RESULTS_DIR / f"node_classification_report_{model_name.lower().replace(' ', '_')}.csv",
+                self._result_path(
+                    f"node_classification_report_{model_name.lower().replace(' ', '_')}.csv"
+                ),
                 index=True,
             )
 
         comparison_df = pd.DataFrame(rows).sort_values("F1-Macro", ascending=False).reset_index(drop=True)
-        comparison_df.to_csv(RESULTS_DIR / "node_classification_comparison.csv", index=False)
+        comparison_df.to_csv(self._result_path("node_classification_comparison.csv"), index=False)
         return comparison_df
 
     def recursive_feature_elimination(self, n_features_to_select: int = 6) -> pd.DataFrame:
@@ -288,7 +306,7 @@ class NodeClassifier:
             }
         ).sort_values(["Ranking", "Feature"])
 
-        ranking_df.to_csv(RESULTS_DIR / "node_classification_rfe.csv", index=False)
+        ranking_df.to_csv(self._result_path("node_classification_rfe.csv"), index=False)
         return ranking_df
 
     def predict_test_labels(self) -> pd.DataFrame:
@@ -305,7 +323,7 @@ class NodeClassifier:
         prediction_df = self.test_df[["node", "dominant_genre"]].copy()
         prediction_df["predicted_genre"] = self.label_encoder.inverse_transform(predicted_codes)
         prediction_df["is_correct"] = prediction_df["dominant_genre"] == prediction_df["predicted_genre"]
-        prediction_df.to_csv(RESULTS_DIR / "node_classification_predictions.csv", index=False)
+        prediction_df.to_csv(self._result_path("node_classification_predictions.csv"), index=False)
         return prediction_df
 
 
