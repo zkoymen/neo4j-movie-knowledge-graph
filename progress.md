@@ -524,6 +524,62 @@ Important note:
 
 This makes it more defensible for the report.
 
+## 9D. ReFeX-Style Feature Expansion on 2026-03-30
+
+### Why this step was added
+The course note says feature selection / Refex must be used alongside the chosen algorithms.
+
+To be safe, the project now includes:
+- manual topological features
+- classic model-side feature ranking
+- a separate ReFeX-style recursive neighborhood feature expansion
+
+### Important implementation note
+The `graphrole` package was tested first, because it is a known ReFeX-related library.
+It did not install cleanly in the current environment because it depends on older `pandas` behavior.
+
+Because of that, a simple in-project ReFeX-style implementation was added instead.
+
+### What the ReFeX-style pipeline does
+Starting from the broader actor feature table, it:
+- keeps local structural features
+- adds recursive neighborhood mean features
+- adds recursive neighborhood sum features
+- repeats this expansion for 2 iterations
+- drops constant or near-duplicate columns
+
+This produces a richer feature table for node classification.
+
+### New ReFeX output files
+- `outputs/results/refex_actor_features.csv`
+- `outputs/results/refex_feature_metadata.csv`
+- `outputs/results/refex_feature_summary.csv`
+- `outputs/results/refex_node_classification_dataset.csv`
+- `outputs/results/refex_node_classification_label_distribution.csv`
+- `outputs/results/refex_node_classification_train.csv`
+- `outputs/results/refex_node_classification_test.csv`
+- `outputs/results/refex_node_classification_comparison.csv`
+- `outputs/results/refex_node_classification_rfe.csv`
+- `outputs/results/refex_node_classification_predictions.csv`
+
+### ReFeX run summary
+- rows: 463
+- final feature columns used for classification: 30
+- best model: Logistic Regression
+- best F1-Macro: 0.4884
+
+### Comparison with the broader manual-feature run
+Broader manual-feature node classification:
+- best F1-Macro: 0.4500
+
+ReFeX-style feature expansion:
+- best F1-Macro: 0.4884
+
+Interpretation:
+- the recursive neighborhood features helped
+- the improvement is not huge, but it is real
+- this is useful for the report because it shows that richer graph-context features improved prediction quality
+
 ## 10. Practical Notes for the Final Report
 
 Useful story for the report:
