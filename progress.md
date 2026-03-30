@@ -451,6 +451,79 @@ Important correction:
 
 This was an important milestone because it made the KG completion output semantically correct.
 
+## 9C. Broader Node Classification Rebuild on 2026-03-30
+
+### Why this rebuild was needed
+The first working node classification pipeline was too narrow for a strong final report.
+
+Main issue:
+- feature extraction only covered the old 1495-actor core subset
+- this made the classification dataset shrink too much after merging labels and features
+
+This was not mainly a timeout issue.
+It was mostly a coverage issue.
+
+### What changed
+The node classification workflow was rebuilt on a broader actor scope.
+
+New classification scope:
+- minimum movies per actor: 3
+- maximum actors for classification features: 3000
+- actual actors covered in the new feature table: 2957
+
+New graph summary for the classification scope:
+- nodes: 2957
+- edges: 21798
+- connected components: 8
+
+### New output files
+New or refreshed files related to this broader classification run:
+- `outputs/results/actor_features_classification.csv`
+- `outputs/results/classification_degree_distribution.csv`
+- `outputs/results/classification_centralities.csv`
+- `outputs/results/classification_communities.csv`
+- `outputs/results/classification_graph_summary.csv`
+- `outputs/results/node_classification_dataset.csv`
+- `outputs/results/node_classification_label_distribution.csv`
+- `outputs/results/node_classification_train.csv`
+- `outputs/results/node_classification_test.csv`
+- `outputs/results/node_classification_comparison.csv`
+- `outputs/results/node_classification_rfe.csv`
+- `outputs/results/node_classification_predictions.csv`
+
+### New label strategy
+The task is still:
+- predict dominant actor genre
+
+But the label handling is now more defensible:
+- stable genres are kept directly
+- the rare genre tail is grouped into `Other`
+
+Reason:
+- tiny one-digit classes are very weak for cross-validation
+- grouping them is more honest than pretending they are stable standalone classes
+
+### Final class distribution after rebuild
+- Comedy: 230
+- Drama: 191
+- Documentary: 16
+- Other: 26
+
+Total final rows:
+- 463
+
+### New model result
+Best model after the broader rebuild:
+- Random Forest
+- Accuracy: 0.7097
+- F1-Macro: 0.4500
+
+Important note:
+- F1-Macro is lower than the old narrow result
+- but this new result is more realistic because the task is harder and the data coverage is broader
+
+This makes it more defensible for the report.
+
 ## 10. Practical Notes for the Final Report
 
 Useful story for the report:

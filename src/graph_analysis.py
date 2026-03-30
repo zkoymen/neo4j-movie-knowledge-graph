@@ -17,18 +17,32 @@ RESULTS_DIR.mkdir(parents=True, exist_ok=True)
 class GraphAnalyzer:
     """Build simple graph projections and calculate topology metrics."""
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        save_outputs: bool = True,
+        output_prefix: str = "",
+    ) -> None:
         self.driver = GraphDatabase.driver(
             config.NEO4J_URI,
             auth=(config.NEO4J_USER, config.NEO4J_PASSWORD),
         )
+        self.save_outputs = save_outputs
+        self.output_prefix = output_prefix
         self.graph: nx.Graph | None = None
         self.core_actor_nodes: list[str] = []
         self.core_actor_meta: pd.DataFrame | None = None
+        self.current_min_movie_count: int | None = None
+        self.current_max_actors: int | None = None
 
     def close(self) -> None:
         """Close the Neo4j driver."""
         self.driver.close()
+
+    def _output_path(self, filename: str) -> Path:
+        """Build the output path for this analyzer."""
+        if self.output_prefix:
+            return RESULTS_DIR / f"{self.output_prefix}{filename}"
+        return RESULTS_DIR / filename
 
     def build_actor_cooccurrence_graph(
         self,
@@ -45,6 +59,9 @@ class GraphAnalyzer:
             min_movie_count = config.CORE_ACTOR_MIN_MOVIES
         if max_actors is None:
             max_actors = config.CORE_ACTOR_MAX_ACTORS
+
+        self.current_min_movie_count = min_movie_count
+        self.current_max_actors = max_actors
 
         graph = nx.Graph()
 
@@ -103,7 +120,8 @@ class GraphAnalyzer:
             }
         ).sort_values(["degree", "node"], ascending=[False, True])
 
-        degree_df.to_csv(RESULTS_DIR / "degree_distribution.csv", index=False)
+        if self.save_outputs:
+            degree_df.to_csv(self._output_path("degree_distribution.csv"), index=False)
         return degree_df
 
     def compute_centralities(self) -> pd.DataFrame:
@@ -121,7 +139,8 @@ class GraphAnalyzer:
                     "pagerank",
                 ]
             )
-            empty_df.to_csv(RESULTS_DIR / "centralities.csv", index=False)
+            if self.save_outputs:
+                empty_df.to_csv(self._output_path("centralities.csv"), index=False)
             return empty_df
 
         # Exact betweenness is too slow on this dataset.
@@ -144,7 +163,8 @@ class GraphAnalyzer:
             }
         ).sort_values(["degree_centrality", "node"], ascending=[False, True])
 
-        centrality_df.to_csv(RESULTS_DIR / "centralities.csv", index=False)
+        if self.save_outputs:
+            centrality_df.to_csv(self._output_path("centralities.csv"), index=False)
         return centrality_df
 
     def detect_communities(self) -> pd.DataFrame:
@@ -168,7 +188,8 @@ class GraphAnalyzer:
                 }
             ).sort_values(["community", "node"])
 
-        community_df.to_csv(RESULTS_DIR / "communities.csv", index=False)
+        if self.save_outputs:
+            community_df.to_csv(self._output_path("communities.csv"), index=False)
         return community_df
 
     def get_graph_summary(self) -> pd.DataFrame:
@@ -189,13 +210,14 @@ class GraphAnalyzer:
                 "edges": self.graph.number_of_edges(),
                 "density": round(nx.density(self.graph), 4),
                 "connected_components": nx.number_connected_components(self.graph),
-                "min_movie_count_filter": config.CORE_ACTOR_MIN_MOVIES,
-                "max_actor_filter": config.CORE_ACTOR_MAX_ACTORS,
+                "min_movie_count_filter": self.current_min_movie_count,
+                "max_actor_filter": self.current_max_actors,
                 "betweenness_k": config.APPROX_BETWEENNESS_K,
             }
 
         summary_df = pd.DataFrame([summary])
-        summary_df.to_csv(RESULTS_DIR / "graph_summary.csv", index=False)
+        if self.save_outputs:
+            summary_df.to_csv(self._output_path("graph_summary.csv"), index=False)
         return summary_df
 
 
