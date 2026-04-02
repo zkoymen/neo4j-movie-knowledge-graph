@@ -136,12 +136,21 @@ class MovieNodeClassifier:
 
     def extract_movie_features(self) -> pd.DataFrame:
         """Create graph features for single-genre movies."""
-        label_df = self._query_single_genre_labels()
-        genre_counts = label_df["dominant_genre"].value_counts()
+        all_label_df = self._query_single_genre_labels()
+        genre_counts = all_label_df["dominant_genre"].value_counts()
 
-        # We keep genres with enough support for a multi-class comparison.
-        stable_genres = genre_counts.loc[genre_counts >= 50].index.tolist()
-        label_df = label_df.loc[label_df["dominant_genre"].isin(stable_genres)].copy()
+        # We use a slightly wider context graph than the final training labels.
+        # Small but still meaningful classes can help neighborhood features,
+        # even if they are excluded from the final supervised benchmark.
+        context_genres = genre_counts.loc[
+            genre_counts >= config.MOVIE_CLASSIFICATION_CONTEXT_MIN_CLASS_SIZE
+        ].index.tolist()
+        label_df = all_label_df.loc[all_label_df["dominant_genre"].isin(context_genres)].copy()
+
+        # Final training labels keep only the stable high-support classes.
+        final_genres = genre_counts.loc[
+            genre_counts >= config.MOVIE_CLASSIFICATION_MIN_CLASS_SIZE
+        ].index.tolist()
         label_df = label_df.reset_index(drop=True)
 
         movie_keys = label_df["node"].tolist()
@@ -171,10 +180,12 @@ class MovieNodeClassifier:
                 }
             )
         else:
+            # Louvain can be a bit expensive, so we run it once and reuse the result.
+            partition = community_louvain.best_partition(self.graph)
             community_df = pd.DataFrame(
                 {
-                    "node": list(community_louvain.best_partition(self.graph).keys()),
-                    "community": list(community_louvain.best_partition(self.graph).values()),
+                    "node": list(partition.keys()),
+                    "community": list(partition.values()),
                 }
             )
 
@@ -223,6 +234,7 @@ class MovieNodeClassifier:
             .dropna()
             .reset_index(drop=True)
         )
+        feature_df = feature_df.loc[feature_df["dominant_genre"].isin(final_genres)].reset_index(drop=True)
 
         feature_df.to_csv(RESULTS_DIR / "movie_classification_dataset.csv", index=False)
         (
