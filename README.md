@@ -7,6 +7,9 @@ Current direction:
 - Neo4j Desktop loads the dump.
 - Python validates the graph, runs exploration, computes topology metrics, and extracts manual features.
 
+Main user guide:
+- `PROJECT_MANUAL.md`
+
 ## 1. Setup
 
 1. Prepare the environment:
@@ -39,7 +42,7 @@ The Python code expects the graph model from that dataset:
 ## 3. Run
 
 ```powershell
-.\run_project.ps1
+python main.py
 ```
 
 This will:

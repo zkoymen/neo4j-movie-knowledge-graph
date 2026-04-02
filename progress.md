@@ -880,3 +880,18 @@ The key story is:
 3. diagnostics showed that `Thriller` was the real bottleneck
 4. the task was stabilized into 4 strong classes
 5. a small targeted boosting tuning step raised the final result to about 0.73 macro-F1
+
+## 10. Documentation and Demo Support on 2026-04-02
+
+To make the final demo and report easier, a new user-facing guide was added:
+- `PROJECT_MANUAL.md`
+
+Purpose of this guide:
+- explain the project in simple language
+- explain how to run the project
+- explain what each main file does
+- show the final important metrics
+- separate final report files from old experiment files
+- give a simple 10-minute demo structure
+
+This was added because the codebase and the `outputs/results` folder became large enough that a direct manual was needed for presentation and report writing.
