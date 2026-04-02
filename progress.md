@@ -1,9 +1,9 @@
 # Project Progress Log
 
-Last updated: 2026-03-30
+Last updated: 2026-04-02
 Project: COM4514 Special Topics II - Building and Analyzing a Knowledge Graph from Movie Data
 Dataset in current use: Neo4j recommendations dump dataset
-Current status: Phase 1 completed, Phase 2 completed, Phase 3 implemented and runtime-validated
+Current status: Phase 1 completed, Phase 2 completed, Phase 3 implemented and improved with a stable 4-class movie node classification setup
 
 ## 1. Project Goal
 
@@ -716,3 +716,167 @@ This file is meant to help with:
 - giving future LLM prompts accurate project context
 - avoiding repeated confusion about what has already been done
 
+-----------------------------------
+2 nisan son detaylar
+----------------------------------------
+
+## 9F. Stable 4-Class Movie Node Classification on 2026-04-02
+
+### Why the previous movie task was still not good enough
+The first movie-based classification version was better than the actor-based task, but it still had a weak point:
+- the `Thriller` class had only 74 samples
+- it was repeatedly confused with `Drama`
+- this was pulling macro-F1 down too much
+
+Important finding:
+- this was not mainly a timeout issue
+- this was a label stability issue
+
+### Bottleneck diagnosis
+Extra diagnostics were checked for the 5-class movie task:
+- class-wise F1 scores
+- confusion matrix
+- balanced accuracy
+- stratified cross-validation mean and standard deviation
+- class weighting and oversampling comparisons
+
+Main conclusion:
+- `Thriller` was the unstable class
+- oversampling and class weighting did not solve the real problem
+- the task needed a more stable label set
+
+### New decision
+The final node classification task now uses:
+- `single-genre movies only`
+- a wider context graph with genres that have at least 50 movies
+- a final supervised label set with genres that have at least 100 movies
+
+This means:
+- smaller useful classes can still help the graph neighborhood context
+- but only strong classes are kept in the final benchmark
+
+### Final stable class distribution
+Current final supervised classes:
+- Drama: 1156
+- Comedy: 804
+- Documentary: 359
+- Horror: 182
+
+Total final rows:
+- 2501
+
+### Manual-feature result on the stable 4-class task
+Best model:
+- Gradient Boosting
+
+Result:
+- Accuracy: 0.7026
+- F1-Macro: 0.6190
+
+Interpretation:
+- the stable 4-class redesign made the task more defensible
+- but manual graph features alone were still not strong enough
+
+## 9G. Tuned Movie ReFeX and Diagnostic Validation on 2026-04-02
+
+### Goal of this step
+After stabilizing the labels, the next goal was very narrow:
+- keep the same 4-class task
+- keep the same overall method
+- improve the final macro-F1 enough to make the result report-ready
+
+### Small targeted model change
+The ReFeX experiment already worked, but the boosting search was too narrow.
+The search was widened slightly for:
+- `max_depth`
+- `subsample`
+- `min_samples_leaf`
+
+Reason:
+- this was the smallest useful tuning step
+- it improved the score without changing the task again
+
+### Final tuned ReFeX result
+Best model:
+- Gradient Boosting
+
+Best parameters:
+- learning_rate: 0.05
+- max_depth: 3
+- min_samples_leaf: 3
+- n_estimators: 200
+- subsample: 0.8
+
+Holdout result:
+- Accuracy: 0.7545
+- Balanced Accuracy: 0.6997
+- F1-Macro: 0.7274
+
+This is the current final node classification result.
+
+### Per-class F1 for the final tuned model
+- Comedy: 0.7078
+- Documentary: 0.7481
+- Drama: 0.7976
+- Horror: 0.6563
+
+Interpretation:
+- `Horror` is still the hardest class
+- but it is no longer collapsing
+- all classes now have usable F1 values
+
+### Final confusion pattern
+The main remaining errors are:
+- some `Comedy` movies predicted as `Drama`
+- some `Documentary` movies predicted as `Drama`
+- some `Horror` movies predicted as `Comedy`
+
+Important note:
+- the final confusion matrix is much more acceptable than the earlier 5-class version
+- the unstable `Thriller` collapse is no longer the main story
+
+### Cross-validation check
+5-fold stratified cross-validation for the tuned ReFeX model:
+- CV F1-Macro Mean: 0.6781
+- CV F1-Macro Std: 0.0255
+- CV Balanced Accuracy Mean: 0.6579
+- CV Balanced Accuracy Std: 0.0303
+
+Interpretation:
+- the holdout score is higher than the CV mean
+- but the model is still reasonably stable
+- this should be reported honestly in the final report
+
+### Imbalance strategy comparison
+Tested strategies on the same holdout split:
+- `gb_base`: F1-Macro 0.7218
+- `gb_oversampled`: F1-Macro 0.7107
+- `rf_base`: F1-Macro 0.6578
+- `rf_weighted`: F1-Macro 0.6546
+- `lr_weighted`: F1-Macro 0.5559
+- `lr_base`: F1-Macro 0.5390
+
+Conclusion:
+- the tuned base boosting model worked best
+- oversampling helped balanced accuracy a little, but did not beat the base tuned model on macro-F1
+- class weighting was not the main solution here
+
+### Files to use later in the report
+Important CSV outputs for this final node classification section are in:
+- `outputs/results/movie_classification_comparison.csv`
+- `outputs/results/movie_classification_rfe.csv`
+- `outputs/results/movie_classification_label_distribution.csv`
+- `outputs/results/movie_refex_comparison.csv`
+- `outputs/results/movie_refex_rfe.csv`
+- `outputs/results/movie_refex_cv_summary.csv`
+- `outputs/results/movie_refex_imbalance_comparison.csv`
+- `outputs/results/movie_refex_report_gradient_boosting.csv`
+- `outputs/results/movie_refex_confusion_gradient_boosting.csv`
+
+### Report writing note
+The key story is:
+1. actor-based node classification was too noisy
+2. movie-based classification was cleaner but still unstable with 5 classes
+3. diagnostics showed that `Thriller` was the real bottleneck
+4. the task was stabilized into 4 strong classes
+5. a small targeted boosting tuning step raised the final result to about 0.73 macro-F1
