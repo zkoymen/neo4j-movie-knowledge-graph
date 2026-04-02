@@ -9,8 +9,9 @@ from src.feature_extraction import FeatureExtractor
 from src.graph_analysis import GraphAnalyzer
 from src.kg_completion import KGCompletionExperiment
 from src.link_prediction import LinkPredictor
-from src.node_classification import NodeClassifier
 from src.graph_model import print_schema
+from src.movie_node_classification import MovieNodeClassifier
+from src.movie_refex import MovieRefexExperiment
 from src.projections import GraphProjections
 from src.visualization import visualize_schema
 
@@ -115,10 +116,10 @@ def main() -> None:
         print("\n--- Predicted Actor Links ---")
         print(predicted_links_df.head(10))
 
-        print("\n9) Running node classification on actor dominant genre labels...")
-        classifier = NodeClassifier()
+        print("\n9) Running movie node classification on stable single-genre labels...")
+        classifier = MovieNodeClassifier()
         try:
-            classifier.build_dataset()
+            classifier.extract_movie_features()
             classifier.prepare_train_test_split()
             node_comparison_df = classifier.run_experiments()
             node_rfe_df = classifier.recursive_feature_elimination()
@@ -126,16 +127,33 @@ def main() -> None:
         finally:
             classifier.close()
 
-        print("\n--- Node Classification Comparison ---")
+        print("\n--- Movie Classification Comparison ---")
         print(node_comparison_df)
 
-        print("\n--- Node Classification RFE ---")
+        print("\n--- Movie Classification RFE ---")
         print(node_rfe_df.head(10))
 
-        print("\n--- Node Classification Predictions ---")
+        print("\n--- Movie Classification Predictions ---")
         print(node_predictions_df.head(10))
 
-        print("\n10) Running knowledge graph completion experiment...")
+        print("\n10) Running movie ReFeX classification experiment...")
+        refex_experiment = MovieRefexExperiment()
+        refex_experiment.build_refex_dataset()
+        refex_experiment.prepare_train_test_split()
+        refex_comparison_df = refex_experiment.run_experiments()
+        refex_rfe_df = refex_experiment.recursive_feature_elimination()
+        refex_predictions_df = refex_experiment.predict_test_labels()
+
+        print("\n--- Movie ReFeX Comparison ---")
+        print(refex_comparison_df)
+
+        print("\n--- Movie ReFeX RFE ---")
+        print(refex_rfe_df.head(10))
+
+        print("\n--- Movie ReFeX Predictions ---")
+        print(refex_predictions_df.head(10))
+
+        print("\n11) Running knowledge graph completion experiment...")
         kg_experiment = KGCompletionExperiment()
         try:
             kg_triples_df = kg_experiment.export_triples()
