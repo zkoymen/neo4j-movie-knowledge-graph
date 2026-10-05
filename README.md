@@ -1,14 +1,10 @@
 # Movie Knowledge Graph Project
 
-This repository follows the roadmap in `PROJECT_PLAN.md`.
-
 Current direction:
 - The project uses the Neo4j `recommendations` dump dataset.
 - Neo4j Desktop loads the dump.
 - Python validates the graph, runs exploration, computes topology metrics, and extracts manual features.
 
-Main user guide:
-- `PROJECT_MANUAL.md`
 
 ## 1. Setup
 
